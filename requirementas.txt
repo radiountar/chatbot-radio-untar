@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pandas
+scikit-learn
+nltk
+openpyxl
+requests
+python-dotenv
+
