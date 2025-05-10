@@ -1,9 +1,9 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pandas
 scikit-learn
 nltk
-openpyxl
-requests
+mysql-connector-python
 python-dotenv
-
+requests
+beautifulsoup4

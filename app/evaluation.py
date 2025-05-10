@@ -3,16 +3,16 @@
 import pandas as pd
 import os
 
-# File untuk menyimpan log
+# digunakan untuk menyimpan log
 LOG_FILE = "logs/chatbot_logs.csv"
 
-# Cek apakah folder logs sudah ada, kalau belum buat
+# untuk melihat Cek apakah folder logs sudah ada
 os.makedirs("logs", exist_ok=True)
 
 # List untuk menyimpan log sementara
 logs = []
 
-# Fungsi untuk menyimpan 1 interaksi ke logs
+# menyimpan 1 interaksi ke logs
 def log_interaction(question: str, answer: str, rank: int, rating: int):
     logs.append({
         "question": question,
@@ -22,7 +22,7 @@ def log_interaction(question: str, answer: str, rank: int, rating: int):
     })
     save_logs_to_csv()
 
-# Fungsi untuk simpan semua logs ke file CSV
+# simpan semua logs ke file CSV
 def save_logs_to_csv():
     df = pd.DataFrame(logs)
     df.to_csv(LOG_FILE, index=False)
