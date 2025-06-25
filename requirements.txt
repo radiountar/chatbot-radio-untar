@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pandas
+scikit-learn
+nltk
+mysql-connector-python
+python-dotenv
+requests
+beautifulsoup4
