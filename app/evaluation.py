@@ -1,43 +1,44 @@
-# app/evaluation.py
-
 import pandas as pd
 import os
+from datetime import datetime
 
-# digunakan untuk menyimpan log
-LOG_FILE = "logs/chatbot_logs.csv"
+# Path file log
+LOG_FILE = "logs/chatbot_logs.xlsx"
 
-# untuk melihat Cek apakah folder logs sudah ada
+# Pastikan folder logs tersedia
 os.makedirs("logs", exist_ok=True)
 
-# List untuk menyimpan log sementara
-logs = []
-
-# menyimpan 1 interaksi ke logs
+# Fungsi menyimpan satu interaksi ke file XLSX (append)
 def log_interaction(question: str, answer: str, rank: int, rating: int):
-    logs.append({
+    log_entry = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "question": question,
         "answer": answer,
         "rank": rank,
         "rating": rating
-    })
-    save_logs_to_csv()
+    }
 
-# simpan semua logs ke file CSV
-def save_logs_to_csv():
-    df = pd.DataFrame(logs)
-    df.to_csv(LOG_FILE, index=False)
-    print("✅ Log terbaru berhasil disimpan ke", LOG_FILE)
+    try:
+        if os.path.exists(LOG_FILE):
+            # Jika file ada, baca dulu isinya lalu tambahkan
+            existing_df = pd.read_excel(LOG_FILE)
+            df = pd.concat([existing_df, pd.DataFrame([log_entry])], ignore_index=True)
+        else:
+            # Jika belum ada, buat baru
+            df = pd.DataFrame([log_entry])
 
-# Fungsi untuk hitung Mean Reciprocal Rank (MRR)
+        # Simpan ke Excel
+        df.to_excel(LOG_FILE, index=False)
+        print("✅ Log disimpan ke", LOG_FILE)
+    except Exception as e:
+        print("❌ Gagal menyimpan log:", e)
+
+# Fungsi untuk menghitung MRR
 def calculate_mrr(logs_data):
-    reciprocal_ranks = []
-    for entry in logs_data:
-        if entry["rank"] > 0:
-            reciprocal_ranks.append(1 / entry["rank"])
+    reciprocal_ranks = [1 / entry["rank"] for entry in logs_data if entry["rank"] > 0]
     return sum(reciprocal_ranks) / len(reciprocal_ranks) if reciprocal_ranks else 0
 
-# Fungsi untuk hitung rata-rata User Satisfaction
+# Fungsi untuk menghitung rata-rata kepuasan
 def calculate_user_satisfaction(logs_data):
     ratings = [entry["rating"] for entry in logs_data]
     return sum(ratings) / len(ratings) if ratings else 0
-

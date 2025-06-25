@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chatbot Radio Untar</title>
+  <style>
+    body { font-family: Arial; background: #f5f5f5; margin: 0; }
+    header { background-color: #b30000; color: white; padding: 20px; text-align: center; }
+    main { padding: 20px; max-width: 700px; margin: auto; background: white; border-radius: 8px; }
+    #response { white-space: pre-wrap; background: #eee; padding: 10px; border-radius: 5px; margin-top: 10px; }
+    input[type="text"] { width: 80%; padding: 10px; margin-right: 10px; }
+    button { padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>💬 Chatbot Radio Untar</h1>
+  </header>
+  <main>
+    <p>Silakan ajukan pertanyaan seputar jadwal siaran, permintaan lagu, dan informasi lainnya.</p>
+    <input type="text" id="question" placeholder="Tulis pertanyaan di sini..." />
+    <button onclick="kirim()">Kirim</button>
+    <div id="response"></div>
+  </main>
+
+  <script>
+    async function kirim() {
+      const question = document.getElementById("question").value;
+      const res = await fetch("http://168.231.101.63:8000/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ user_id: "web_user", message: question })
+      });
+
+      const data = await res.json();
+      document.getElementById("response").innerText = data.response || JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>

@@ -8,7 +8,12 @@ class LaguRetriever:
     def __init__(self):
         self.df = self._load_data()
         self.vectorizer = TfidfVectorizer()
-        self.corpus = self.df["combined"].tolist()
+
+        # Siapkan corpus dari kolom 'combined' dan pastikan tidak kosong
+        self.corpus = self.df["combined"].dropna().tolist()
+        if not self.corpus or all(text.strip() == "" for text in self.corpus):
+            raise ValueError("Data lagu kosong atau tidak valid. Kolom 'combined' tidak boleh kosong.")
+
         self.tfidf_matrix = self.vectorizer.fit_transform(self.corpus)
 
     def _load_data(self):
@@ -17,8 +22,8 @@ class LaguRetriever:
         df = pd.read_sql(query, conn)
         conn.close()
 
-        # Gabungkan judul + artist dalam satu kolom teks
-        df["combined"] = (df["judul"] + " " + df["artist"]).str.lower()
+        # Gabungkan judul dan artist ke kolom 'combined'
+        df["combined"] = (df["judul"].fillna("") + " " + df["artist"].fillna("")).str.lower()
         return df
 
     def _preprocess(self, text):

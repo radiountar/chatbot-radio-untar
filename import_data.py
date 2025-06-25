@@ -1,25 +1,28 @@
+import os
 import pandas as pd
 import mysql.connector
+from dotenv import load_dotenv
 
-# Konfigurasi koneksi database MySQL
+# ✅ Muat environment variable dari file .env
+load_dotenv()
+
+# ✅ Konfigurasi koneksi database dari environment
 db_config = {
-    "host": "localhost",
-    "user": "root",
-    "password": "",      # Ganti dengan password MySQL kamu
-    "database": "radio_untar"
+    "host": os.getenv("DB_HOST"),
+    "port": int(os.getenv("DB_PORT")),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME")
 }
 
-# Fungsi untuk import FAQ
+# ✅ Fungsi untuk import FAQ
 def import_faq(filepath):
     try:
         df = pd.read_excel(filepath)
-
-        # Hapus baris yang kolomnya kosong
         df = df.dropna(subset=["Pertanyaan", "Jawaban"])
 
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
-
         cursor.execute("DELETE FROM faq")
 
         for _, row in df.iterrows():
@@ -35,15 +38,14 @@ def import_faq(filepath):
     except Exception as e:
         print(f"❌ Gagal mengimpor FAQ: {e}")
 
-
-# Fungsi untuk import Lagu
+# ✅ Fungsi untuk import Lagu
 def import_lagu(filepath):
     try:
         df = pd.read_excel(filepath)
+        df = df.dropna(subset=["judul", "artist"])
+
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor()
-
-        # Kosongkan isi tabel lagu terlebih dahulu (opsional)
         cursor.execute("DELETE FROM lagu")
 
         for _, row in df.iterrows():
@@ -59,7 +61,7 @@ def import_lagu(filepath):
     except Exception as e:
         print(f"❌ Gagal mengimpor Lagu: {e}")
 
-# Jalankan fungsi
+# ✅ Jalankan fungsi jika file ini dijalankan langsung
 if __name__ == "__main__":
     import_faq("dataset_radio_untar.xlsx")
     import_lagu("daftar_lagu.xlsx")

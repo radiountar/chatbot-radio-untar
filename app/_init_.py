@@ -1,2 +1,2 @@
 # File kosong
-# Menandakan bahwa "app/" adalah Python package
+# untuk Menandakan bahwa "app/" adalah Python package

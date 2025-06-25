@@ -5,6 +5,17 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from app.db import get_connection
 
+# Daftar kata kasar (contoh)
+BAD_WORDS = [
+    "bodoh", "tolol", "bangsat", "anjing", "goblok", "sialan"
+]
+
+def contains_bad_word(text):
+    for bad in BAD_WORDS:
+        if re.search(rf"\\b{re.escape(bad)}\\b", text.lower()):
+            return True
+    return False
+
 def preprocess(text: str) -> str:
     text = text.lower()
     text = re.sub(r'[^a-zA-Z\s]', '', text)
@@ -24,7 +35,7 @@ def replace_synonyms(text: str) -> str:
     return ' '.join(new_words)
 
 class Chatbot:
-    def __init__(self, db_config):
+    def __init__(self):
         try:
             self.conn = get_connection()
             self.cursor = self.conn.cursor()
@@ -45,12 +56,18 @@ class Chatbot:
         print("✅ Vectorizer dan matrix TF-IDF berhasil dibuat.")
 
     def get_answer(self, query: str) -> tuple[str, int]:
+        if contains_bad_word(query):
+            return "⚠️ Mohon untuk tidak menggunakan kata-kata tidak pantas.", -1
+
         cleaned_query = replace_synonyms(preprocess(query))
         query_vec = self.vectorizer.transform([cleaned_query])
         similarities = cosine_similarity(query_vec, self.tfidf_matrix)[0]
         best_match_idx = similarities.argmax()
         best_score = similarities[best_match_idx]
 
-        if best_score < 0.2:
+        print(f"🔍 Cosine similarity score tertinggi: {best_score:.4f}")
+
+        if best_score < 0.8:
             return "Maaf, saya tidak mengerti pertanyaan Anda.", -1
+
         return self.answers[best_match_idx], best_match_idx + 1

@@ -1,90 +1,71 @@
-from app.db import get_connection
-from app.lagu_retriever import LaguRetriever
-from nltk.corpus import wordnet
 import re
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from app.db import get_connection
 
-# Menyimpan sesi pengguna
+# Sesi pengguna disimpan global
 user_sessions = {}
-retriever = LaguRetriever()
 
-# 🔍 Filtering input
-def preprocess(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r'[^a-zA-Z\s]', '', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+def bersihkan_kalimat(teks):
+    teks = teks.lower()
+    teks = re.sub(r'[^\w\s]', '', teks)
+    stopwords = ['lagu', 'putar', 'mainkan', 'dengarkan', 'request', 'minta', 'play']
+    for word in stopwords:
+        teks = teks.replace(word, '')
+    return teks.strip()
 
-def replace_synonyms(text: str) -> str:
-    words = text.split()
-    new_words = []
-    for word in words:
-        syns = wordnet.synsets(word)
-        if syns:
-            lemma = syns[0].lemmas()[0].name().replace("_", " ")
-            new_words.append(lemma)
-        else:
-            new_words.append(word)
-    return ' '.join(new_words)
+def handle_request_input(user_id, user_message, cursor, conn, vectorizer, tfidf_matrix, song_data):
+    query = bersihkan_kalimat(user_message)
+    print(f"[DEBUG] Query bersih: {query}")
 
-def extract_artist_from_message(message: str) -> str:
-    # Hilangkan kata-kata umum
-    keywords = ["request", "lagu", "minta", "putar", "mainkan", "aku", "saya", "mau", "denger", "dengarkan", "musik", "dong", "tolong"]
-    message = preprocess(message)
-    message = replace_synonyms(message)
-    for word in keywords:
-        message = message.replace(word, "")
-    return message.strip()
+    query_vec = vectorizer.transform([query])
+    similarities = cosine_similarity(query_vec, tfidf_matrix)[0]
+    print(f"[DEBUG] Skor tertinggi TF-IDF: {max(similarities)}")
 
-# 🔁 Fallback jika retriever gagal
-def fallback_sql_search(artist_keyword: str):
-    print(f"[DEBUG] Fallback SQL: Mencari '{artist_keyword}' langsung di DB.")
-    conn = get_connection()
-    cursor = conn.cursor()
+    # Ambang batas minimal kecocokan
+    threshold = 0.3
 
-    query = "SELECT id, judul, artist FROM lagu WHERE LOWER(artist) LIKE %s"
-    query_value = "%" + artist_keyword.lower() + "%"
-    cursor.execute(query, (query_value,))
-    results = cursor.fetchall()
+    if max(similarities) < threshold:
+        return "Maaf, lagu yang Anda cari tidak tersedia. Silakan coba dengan judul atau penyanyi lain.", None
 
-    cursor.close()
-    conn.close()
-    return [(judul, artist, 1.0) for _, judul, artist in results]
+    # Ambil top 30 hasil teratas
+    top_indices = similarities.argsort()[::-1][:30]
+    pilihan_mentah = [song_data[i] for i in top_indices]
 
-# 🔁 Fungsi utama
-def handle_request_input(chat_id, user_input):
-    # Tahap 1: user memilih nomor lagu
-    if chat_id in user_sessions and user_sessions[chat_id].get("state") == "menunggu_pilihan":
-        pilihan = user_input.strip()
-        daftar = user_sessions[chat_id]["daftar_lagu"]
-        if pilihan.isdigit():
-            idx = int(pilihan) - 1
-            if 0 <= idx < len(daftar):
-                judul, artist = daftar[idx]
-                del user_sessions[chat_id]
-                return f"✅ Permintaan lagu *{judul}* oleh *{artist}* telah dikirim ke penyiar.", f"{judul} - {artist}"
-        return "❌ Pilihan tidak valid. Silakan masukkan angka dari daftar lagu.", None
-
-    # Tahap 2: ekstrak keyword dan cari
-    keyword = extract_artist_from_message(user_input)
-    hasil = retriever.cari_lagu_terdekat(keyword)
-
-    if not hasil:
-        hasil = fallback_sql_search(keyword)
-        if not hasil:
-            return "Maaf, tidak ditemukan lagu yang cocok dengan pencarian Anda.", None
-
-    user_sessions[chat_id] = {
-        "state": "menunggu_pilihan",
-        "daftar_lagu": [(judul, artist) for judul, artist, _ in hasil]
-    }
-
-    daftar_lagu = [
-        {"no": i, "judul": judul}
-        for i, (judul, _) in enumerate(user_sessions[chat_id]["daftar_lagu"], 1)
+    # Filter hasil yang cocok
+    hasil_filter = [
+        lagu for lagu in pilihan_mentah
+        if query in lagu["judul"].lower() or query in lagu["penyanyi"].lower()
     ]
 
-    return {
-        "response": "🎵 Berikut daftar lagu yang ditemukan",
-        "data": daftar_lagu,
-        "note": "Silakan balas dengan angka pilihanmu:"
-    }, None
+    hasil_final = hasil_filter if hasil_filter else pilihan_mentah[:5]
+
+    if not hasil_final:
+        return "Maaf, saya tidak menemukan lagu yang cocok dengan permintaan Anda.", None
+
+    user_sessions[user_id] = {
+        "state": "menunggu_pilihan",
+        "hasil_lagu": hasil_final
+    }
+
+    response = "🎵 Berikut lagu yang cocok:\n"
+    for i, lagu in enumerate(hasil_final, 1):
+        response += f"{i}. {lagu['judul']} - {lagu['penyanyi']}\n"
+    response += "\nSilakan pilih nomor lagu yang Anda inginkan."
+
+    return response, None
+
+def handle_selection_input(user_id, user_message):
+    if user_id not in user_sessions or user_sessions[user_id].get("state") != "menunggu_pilihan":
+        return "Silakan ketik permintaan lagu terlebih dahulu.", None
+
+    try:
+        index = int(user_message.strip()) - 1
+        lagu = user_sessions[user_id]["hasil_lagu"][index]
+        info = f"{lagu['judul']} oleh {lagu['penyanyi']}"
+        del user_sessions[user_id]
+        return f"✅ Permintaan lagu '{info}' telah dicatat dan diteruskan ke penyiar.", info
+
+    except (ValueError, IndexError):
+        return "Nomor pilihan tidak valid. Silakan pilih nomor lagu yang tersedia.", None
